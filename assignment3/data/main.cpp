@@ -5,6 +5,7 @@
 #include <map>
 #include <iomanip>
 #include <unordered_map>
+#include <set>
 
 using namespace std;
 
@@ -81,7 +82,10 @@ string ProcessWord(string s)
 
 void ParseFile(string filename, int classNum, TrainingSet* trainingSet)
 {
+	set<string> setBuffer;
+	set<string>::iterator it;
 	// Open file.
+
 	ifstream in;
 	in.open(filename.c_str());
 	if (!in.is_open())
@@ -109,12 +113,18 @@ void ParseFile(string filename, int classNum, TrainingSet* trainingSet)
 		{		
 			// Do stuff here (for instance, check if the word is in the dictionary).
 			// You might also like to make this function return something.
-			unordered_map<string,int>::const_iterator currentCounter = trainingSet->WordCountClass[classNum].find(word);
-			//cout<<word<<endl;
-			if ( currentCounter != trainingSet->WordCountClass[classNum].end() ){
+			it = setBuffer.find(word);
+			if(it==setBuffer.end()){
+				//cout<<"here in the parse file function"<<endl;
+				unordered_map<string,int>::const_iterator currentCounter = trainingSet->WordCountClass[classNum].find(word);
+				//cout<<word<<endl;
+				if ( currentCounter != trainingSet->WordCountClass[classNum].end() ){
 				//cout << currentCounter->first << " is " << currentCounter->second<<endl;
 				trainingSet->WordCountClass[classNum][word]=currentCounter->second+1;
+				}
+				setBuffer.insert(word);
 			}
+			
    				 
 			// int counter = currentCounter->second;
 			// cout<<counter<<endl;
@@ -153,6 +163,7 @@ void PopulateDictionary(string filename, TrainingSet* trainingSet)
 				}
 			}
 		}
+		in.close();
 }
 
 void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
@@ -187,26 +198,57 @@ void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
         trainingSet->increaseTotalMessage();
 
         ParseFile(filename,classNum,trainingSet);
-
-        // cout << "filename " << filename << endl;
-        // cout << "classname " << classNum << endl;
-        for(int a = 0; a<4; a++){
-        	for (unordered_map<string,int>::iterator it=trainingSet->WordCountClass[a].begin(); it!=trainingSet->WordCountClass[a].end(); ++it){
-        		trainingSet->ProbWordClass[a][it->first] = (double)trainingSet->WordCountClass[a][it->first]/(double)trainingSet->MessageClassCount[a];
-        		cout<<trainingSet->ProbWordClass[a][it->first]<<endl;
-        	}
-        }
-        
 	}
-
-
 
 		//store the value of ProbClass Array
 		for(int a = 0 ; a < 4 ; a++){
 			double prob = trainingSet->getMessageClassCount(a)/(double)trainingSet->getTotalM();
 			trainingSet->setProbClass(a,prob);
-			//cout<<"ProbClass " << setprecision(3)<<a << " " <<trainingSet.getProbClass(a)<<endl;
+			cout<<"ProbClass " << setprecision(3)<<a << " " <<trainingSet->getProbClass(a)<<endl;
 		}
+
+		//calculate the probability for each word
+		for(int b = 0; b<4; b++){
+        	for (unordered_map<string,int>::iterator it=trainingSet->WordCountClass[b].begin(); it!=trainingSet->WordCountClass[b].end(); ++it){
+        		trainingSet->ProbWordClass[b][it->first] = ((double)trainingSet->WordCountClass[b][it->first]+1)/((double)trainingSet->MessageClassCount[b]+2);
+        		//cout<<trainingSet->ProbWordClass[a][it->first]<<endl;
+        	}
+        }
+
+
+		//output the network.txt 
+		ofstream networkfile;
+		networkfile.open ("solution/network.txt");
+
+        ifstream Dic;
+        string dictionaryName = "dictionary";
+		Dic.open(dictionaryName.c_str());
+		if (!Dic.is_open())
+		{
+			cout<<"File not found: "<<dictionaryName<<endl;
+			return;
+		}
+		// Read the rest of the file word by word.
+		string word;
+		while (Dic >> word)
+		{
+			// Strip the word of punctuation and convert to lower case.
+			word = ProcessWord(word);
+			if (word != "")
+			{		
+				for(int i = 0; i< 4; i++){
+					unordered_map<string,int>::iterator it = trainingSet->WordCountClass[i].find(word);
+					networkfile << it->first<<"     "<<i<<"      "<<trainingSet->ProbWordClass[i][it->first]<< "\n";
+				}
+			}
+		}
+
+
+		Dic.close();
+        networkfile.close();
+
+
+	
 
 		// cout<<"TotalMessageClassCount "<<trainingSet->getTotalM()<<endl;
 		// cout<<"TotalMessageClass1 "<<trainingSet->getMessageClassCount(0)<<endl;
