@@ -4,23 +4,25 @@
 #include <sstream>
 #include <map>
 #include <iomanip>
+#include <unordered_map>
 
 using namespace std;
 
 
 class TrainingSet{
-	private:
+	public:
 		int totalMessage;
 		double* MessageClassCount;
 		double* ProbClass;
-		map<string,int>* ProbWordClass;
-
+		map<string,double>* ProbWordClass;
+		unordered_map<string,int>* WordCountClass;
 	public:
         TrainingSet(){
 		totalMessage=0;
 		ProbClass = new double[4];
 		MessageClassCount = new double[4];
-		ProbWordClass = new map<string,int>[4];
+		WordCountClass = new unordered_map<string,int>[4];
+		ProbWordClass = new map<string,double>[4];
 		for(int i = 0 ; i < 4; i++){
 			MessageClassCount[i] = 0;
 		}
@@ -42,6 +44,10 @@ class TrainingSet{
 		return totalMessage;
 	}
 
+	unordered_map<string,int> getWordCountClass(int i){
+		return WordCountClass[i];
+	}
+
 	double getProbClass(int i){
 		return ProbClass[i];
 	}
@@ -50,9 +56,10 @@ class TrainingSet{
 		return MessageClassCount[i];
 	}
 
-	map<string,int> getProbWordClass(int i){
+	map<string,double> getProbWordClass(int i){
 		return ProbWordClass[i];
 	}
+
 
 };
 
@@ -72,7 +79,7 @@ string ProcessWord(string s)
 	return t;
 }
 
-void ParseFile(string filename)
+void ParseFile(string filename, int classNum, TrainingSet* trainingSet)
 {
 	// Open file.
 	ifstream in;
@@ -102,12 +109,56 @@ void ParseFile(string filename)
 		{		
 			// Do stuff here (for instance, check if the word is in the dictionary).
 			// You might also like to make this function return something.
-			cout<<word<<endl;
+			unordered_map<string,int>::const_iterator currentCounter = trainingSet->WordCountClass[classNum].find(word);
+			//cout<<word<<endl;
+			if ( currentCounter != trainingSet->WordCountClass[classNum].end() ){
+				//cout << currentCounter->first << " is " << currentCounter->second<<endl;
+				trainingSet->WordCountClass[classNum][word]=currentCounter->second+1;
+			}
+   				 
+			// int counter = currentCounter->second;
+			// cout<<counter<<endl;
+			// if(currentCounter->second!=NULL){
+			// 	cout<<word<<" here is the currentCounter "<<currentCounter->second <<endl;
+			// }
+			
 		}
 	}
 }
 
-void TrainTheModel(TrainingSet trainingSet, string trainingFileList ){
+void PopulateDictionary(string filename, TrainingSet* trainingSet)
+	{
+		// Open file.
+		ifstream in;
+		in.open(filename.c_str());
+		if (!in.is_open())
+		{
+			cout<<"File not found: "<<filename<<endl;
+			return;
+		}
+		// Read the rest of the file word by word.
+		string word;
+		while (in >> word)
+		{
+			// Strip the word of punctuation and convert to lower case.
+			word = ProcessWord(word);
+		
+			if (word != "")
+			{		
+				for(int i = 0; i< 4; i++){
+					//pair<std::string,double> newWord (word,0);
+					//trainingSet->getWordCountClass(i).insert(newWord);
+					trainingSet->WordCountClass[i][word]=0;
+					trainingSet->ProbWordClass[i][word]=0;
+				}
+			}
+		}
+}
+
+void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
+
+
+	PopulateDictionary("dictionary", trainingSet);
 
 	ifstream in;
 	in.open(trainingFileList.c_str());
@@ -132,33 +183,60 @@ void TrainTheModel(TrainingSet trainingSet, string trainingFileList ){
         iss >> classname;
 
         int classNum = stoi(classname);
-        trainingSet.increaseMessageClassCount(classNum);
-        trainingSet.increaseTotalMessage();
+        trainingSet->increaseMessageClassCount(classNum);
+        trainingSet->increaseTotalMessage();
 
-        cout << "filename " << filename << endl;
-        cout << "classname " << classNum << endl;
+        ParseFile(filename,classNum,trainingSet);
+
+        // cout << "filename " << filename << endl;
+        // cout << "classname " << classNum << endl;
+        for(int a = 0; a<4; a++){
+        	for (unordered_map<string,int>::iterator it=trainingSet->WordCountClass[a].begin(); it!=trainingSet->WordCountClass[a].end(); ++it){
+        		trainingSet->ProbWordClass[a][it->first] = (double)trainingSet->WordCountClass[a][it->first]/(double)trainingSet->MessageClassCount[a];
+        		cout<<trainingSet->ProbWordClass[a][it->first]<<endl;
+        	}
+        }
+        
 	}
 
+
+
+		//store the value of ProbClass Array
 		for(int a = 0 ; a < 4 ; a++){
-			double prob = trainingSet.getMessageClassCount(a)/(double)trainingSet.getTotalM();
-			trainingSet.setProbClass(a,prob);
+			double prob = trainingSet->getMessageClassCount(a)/(double)trainingSet->getTotalM();
+			trainingSet->setProbClass(a,prob);
 			//cout<<"ProbClass " << setprecision(3)<<a << " " <<trainingSet.getProbClass(a)<<endl;
 		}
 
-		cout<<"TotalMessageClassCount "<<trainingSet.getTotalM()<<endl;
-		cout<<"TotalMessageClass1 "<<trainingSet.getMessageClassCount(0)<<endl;
-		cout<<"TotalMessageClass2 "<<trainingSet.getMessageClassCount(1)<<endl;
-		cout<<"TotalMessageClass3 "<<trainingSet.getMessageClassCount(2)<<endl;
-		cout<<"TotalMessageClass4 "<<trainingSet.getMessageClassCount(3)<<endl;
+		// cout<<"TotalMessageClassCount "<<trainingSet->getTotalM()<<endl;
+		// cout<<"TotalMessageClass1 "<<trainingSet->getMessageClassCount(0)<<endl;
+		// cout<<"TotalMessageClass2 "<<trainingSet->getMessageClassCount(1)<<endl;
+		// cout<<"TotalMessageClass3 "<<trainingSet->getMessageClassCount(2)<<endl;
+		// cout<<"TotalMessageClass4 "<<trainingSet->getMessageClassCount(3)<<endl;
+
+
 }
+
+
+
+
 
 int main()
 {
 
-	TrainingSet trainingSet;
+	TrainingSet* trainingSet = new TrainingSet();
 	TrainTheModel(trainingSet,"training_list");
 
-	//ParseFile("training/comp.graphics/37914");
+	// ParseFile("training/comp.graphics/37914",0,trainingSet);
+	// ParseFile("training/comp.graphics/37915",0,trainingSet);
 	
+
+	// map<string,int>* W = new map<string,int>();
+	// W[0]["elliscope"] = 1;
+	// W[0]["steven"] = 2;
+
+	// auto it = W->find("elliscope");
+	// if (it != W->end()) cout << "x: " << it->second << "\n";
+
 	return 0;
 }
