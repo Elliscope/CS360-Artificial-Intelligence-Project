@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <unordered_map>
 #include <set>
+#include <math.h>
 
 using namespace std;
 
@@ -123,15 +124,7 @@ void ParseFile(string filename, int classNum, TrainingSet* trainingSet)
 				trainingSet->WordCountClass[classNum][word]=currentCounter->second+1;
 				}
 				setBuffer.insert(word);
-			}
-			
-   				 
-			// int counter = currentCounter->second;
-			// cout<<counter<<endl;
-			// if(currentCounter->second!=NULL){
-			// 	cout<<word<<" here is the currentCounter "<<currentCounter->second <<endl;
-			// }
-			
+			}			
 		}
 	}
 }
@@ -166,8 +159,8 @@ void PopulateDictionary(string filename, TrainingSet* trainingSet)
 		in.close();
 }
 
-void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 
+void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 
 	PopulateDictionary("dictionary", trainingSet);
 
@@ -188,7 +181,6 @@ void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 
         string filename;
         iss >> filename;
-        //do something withe file 
 
         string classname;
         iss >> classname;
@@ -211,7 +203,6 @@ void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 		for(int b = 0; b<4; b++){
         	for (unordered_map<string,int>::iterator it=trainingSet->WordCountClass[b].begin(); it!=trainingSet->WordCountClass[b].end(); ++it){
         		trainingSet->ProbWordClass[b][it->first] = ((double)trainingSet->WordCountClass[b][it->first]+1)/((double)trainingSet->MessageClassCount[b]+2);
-        		//cout<<trainingSet->ProbWordClass[a][it->first]<<endl;
         	}
         }
 
@@ -242,22 +233,165 @@ void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 				}
 			}
 		}
-
-
 		Dic.close();
         networkfile.close();
-
-
-	
-
-		// cout<<"TotalMessageClassCount "<<trainingSet->getTotalM()<<endl;
-		// cout<<"TotalMessageClass1 "<<trainingSet->getMessageClassCount(0)<<endl;
-		// cout<<"TotalMessageClass2 "<<trainingSet->getMessageClassCount(1)<<endl;
-		// cout<<"TotalMessageClass3 "<<trainingSet->getMessageClassCount(2)<<endl;
-		// cout<<"TotalMessageClass4 "<<trainingSet->getMessageClassCount(3)<<endl;
-
-
 }
+
+
+int TestFile(string filename,TrainingSet* trainingSet,map<string, int>* testResult){
+	double* probability = new double[4];
+
+
+	for(int i =0 ; i<4; i++){
+		probability[i] = trainingSet->getProbClass(i);
+		cout<<probability[i]<<endl;
+	}
+
+
+
+	set<string> MessageWords;
+	set<string>::iterator message_it;
+
+	map<string,double>::iterator it;
+
+	ifstream in;
+	in.open(filename.c_str());
+	if (!in.is_open())
+	{
+		cout<<"File not found: "<<filename<<endl;
+		return -1;
+	}
+	
+	// Find the end of the header.
+	string line;
+	while (getline(in, line))
+	{
+		if (line == "")
+			break;
+	}
+
+	// Read the rest of the file word by word.
+	string word;
+
+	//Store all words find in the message into the set
+	while (in >> word)
+	{
+		// Strip the word of punctuation and convert to lower case.
+		word = ProcessWord(word);
+		if (word != "")
+		{		
+			// Do stuff here (for instance, check if the word is in the dictionary).
+			// You might also like to make this function return something.
+			message_it = MessageWords.find(word);
+			if(message_it==MessageWords.end()){
+				MessageWords.insert(word);
+			}			
+		}
+	}
+
+	in.close();
+
+
+	ifstream Dic;
+	string dictionary = "dictionary";
+	Dic.open(dictionary.c_str());
+	if (!Dic.is_open())
+	{
+		cout<<"File not found: "<<dictionary<<endl;
+		return -1;
+	}
+
+	//Store all words find in the message into the set
+	while (Dic >> word)
+	{
+		// Strip the word of punctuation and convert to lower case.
+		word = ProcessWord(word);
+		if (word != "")
+		{		
+			// Do stuff here (for instance, check if the word is in the dictionary).
+			// You might also like to make this function return something.
+			message_it = MessageWords.find(word);
+			for(int a = 0; a<4; a++){
+				double pro = trainingSet->ProbWordClass[a][word];
+				if(message_it==MessageWords.end()){	
+				probability[a] += log(1-pro);
+				}else{
+				probability[a] += log(pro);
+				}	
+			}
+					
+		}
+	}
+
+	double max = probability[0];
+
+	for(int i =0 ; i<4; i++){
+		if(max<probability[i]){
+			max = probability[i];
+		}
+	}
+
+	for(int i =0; i<4 ; i++){
+		if(max==probability[i]){
+			return i;
+		}
+	}
+
+	cout<<"probability"<<endl;
+
+	Dic.close();
+	return -1;
+}
+
+
+//Deal with test file
+void TestModel(TrainingSet* trainingSet, string testFileList, map<string, int>* testResult,int** array){
+
+	ifstream in;
+	in.open(testFileList.c_str());
+
+	if (!in.is_open())
+	{
+		cout<<"tets file list not found: "<<testFileList<<endl;
+		return;
+	}
+	
+	// Find the end of the header.
+	string line;
+	while (getline(in, line))
+	{
+		istringstream iss(line);
+
+        string filename;
+        iss >> filename;
+
+        string classname;
+        iss >> classname;
+
+        int classNum = stoi(classname);
+        int resultNum = TestFile(filename,trainingSet,testResult);
+
+        cout<<"resultNum is here  outside function "<<resultNum<<endl;
+        cout<<"classNum is here outside function "<<classNum<<endl;
+
+        array[classNum][resultNum]+=1;
+
+	}
+
+		ofstream summaryfile;
+		summaryfile.open ("solution/classification-summary.txt");
+
+       	for(int b = 0; b< 4; b++){
+			for(int c= 0; c<4;c++){
+				summaryfile<<array[b][c]<<" ";
+			}
+			summaryfile<<"\n";
+		}
+
+        summaryfile.close();		
+}
+
+
 
 
 
@@ -265,9 +399,27 @@ void TrainTheModel(TrainingSet* trainingSet, string trainingFileList ){
 
 int main()
 {
+	map<string, int>* testResult = new map<string,int>();
+
+	
+	//initialize print out array
+	int width = 4;
+	int height = 4;
+	int** arr = new int*[width];
+	
+	for(int i = 0; i < width; ++i){
+			arr[i] = new int[height];
+			for(int a = 0; a<height ; a++){
+				arr[i][a]=0;
+			}
+	}
+   			
 
 	TrainingSet* trainingSet = new TrainingSet();
 	TrainTheModel(trainingSet,"training_list");
+
+
+	TestModel(trainingSet,"test_list", testResult,arr);
 
 	// ParseFile("training/comp.graphics/37914",0,trainingSet);
 	// ParseFile("training/comp.graphics/37915",0,trainingSet);
