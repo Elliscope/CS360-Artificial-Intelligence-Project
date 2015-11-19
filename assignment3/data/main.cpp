@@ -244,7 +244,8 @@ int TestFile(string filename,TrainingSet* trainingSet,map<string, int>* testResu
 
 	for(int i =0 ; i<4; i++){
 		probability[i] = trainingSet->getProbClass(i);
-		cout<<probability[i]<<endl;
+		//cout<<"proba : "<<probability[i]<<endl;
+
 	}
 
 
@@ -358,6 +359,9 @@ void TestModel(TrainingSet* trainingSet, string testFileList, map<string, int>* 
 	
 	// Find the end of the header.
 	string line;
+	ofstream classificationfile;
+	classificationfile.open ("solution/classification.txt");
+
 	while (getline(in, line))
 	{
 		istringstream iss(line);
@@ -375,8 +379,11 @@ void TestModel(TrainingSet* trainingSet, string testFileList, map<string, int>* 
         cout<<"classNum is here outside function "<<classNum<<endl;
 
         array[classNum][resultNum]+=1;
+		classificationfile<<filename<<"    "<<classname<<"    "<<resultNum<<"\n";
 
 	}
+
+		classificationfile.close();	
 
 		ofstream summaryfile;
 		summaryfile.open ("solution/classification-summary.txt");
